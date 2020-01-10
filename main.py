@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 from bs4 import BeautifulSoup
-from flask import Flask
+#from flask import Flask
 import requests
 import json
 import csv
 import time
 import os
 
-app = Flask(__name__)
+#app = Flask(__name__)
 
 # Function to read ticker symbol lists, translate symbol lists into IG API "epics" lists and create list in IG
 def createlist(syms, country, listname, checknewscode=False, overrides=None, printonly=True):
@@ -75,7 +75,7 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
         return r.text
 
 # Main function - log's into Suubee, scrapes list data from Trade Desk and US Page, provides list of ticker symbols to createlist function for creation of lists in IG (and ProRealtime)
-@app.route("/")
+#@app.route("/")
 def run(event=None,context=None):
     #IG numerical username (same as what you log into IG with)
     igusername = os.environ['IG_USER']
@@ -288,10 +288,11 @@ def run(event=None,context=None):
     # results.append(createlist(stage1syms, 'US', 'US-Stage-One', True, printonly=printonly))
 	
     # This part for generate HTML for return
-    html = ''
-    for i in results:
-        html += '<h2>' + i + '</br>'
+    #html = ''
+    #for i in results:
+        #html += '<h2>' + i + '</br>'
 
-    return html	
+    #return html	
+    print results
 
-#run()
+run()
