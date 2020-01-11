@@ -1,0 +1,4 @@
+cron:
+- description: "Suubee Scraper Periodic"
+  url: /
+  schedule: every 6 hours
