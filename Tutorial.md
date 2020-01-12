@@ -23,6 +23,15 @@ Replace PROJECT_ID with a suitable project name
 
 **Tip**: Click the copy button on the side of the code box and paste the command in the Cloud Shell terminal to run it.
 
+## Set the project you just created as the active project
+
+Run the below command in the shell:
+```bash
+gcloud config set project PROJECT_ID
+```
+
+**Tip**: Click the copy button on the side of the code box and paste the command in the Cloud Shell terminal to run it.
+
 ## Edit the .env file with your Username\Password settings for IG & Suubee
 
 In order for the script to recieve the lists from Suubee it must have the correct login details to access the site (as it is not a publicly available website).
@@ -59,6 +68,20 @@ gcloud app deploy ./app.yaml ./cron.yaml
 
 **Tip**: Click the copy button on the side of the code box and paste the command in the Cloud Shell terminal to run it.
 
+**Note**: At this point the deployment will probably fail and you will be asked to enable the "Cloud Build API" and in turn enable billing. Click on the supplied link which will open in a new tab, then click "Enable Cloud Build API", follow the instructions for enabling billing. Then click the "Enable Cloud Build API" again and return to this tab in your web browser.
+
+## Test your application
+
+Try running a command now:
+```bash
+gcloud app browse
+```
+
+**Tip**: Click the copy button on the side of the code box and paste the command in the Cloud Shell terminal to run it.
+
+If Cloud Console cannot detect your browser, you will be presented with a clickable link. Click the link to start your script.
+
+**Note**: The script will take between 10-30 minutes depending on the amount of tickers on the site and wether you have arranged with IG to have your throttling relaxed. For example after contacting helpdesk.uk@ig.com I was able to decrease the throttling on my account from 60 requests per minute to 180 requests per minute. If you want to do the same, you will need to give IG the reason you are doing this and the API Key you are using.
 
 ## Congratulations
 
