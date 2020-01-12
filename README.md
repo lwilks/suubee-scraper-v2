@@ -1,6 +1,8 @@
 # Suubee-Scraper
 Script to download lists from Suubee.com and build watchlist in IG
 
+**WARNING**: This script was developed by Liam Wilks and is completly independent of Suubee.com. Under no circumstances shall Liam Wilks or Suubee be liable for any indirect, incidental, consequintial, special or exemplary dmages arising out of or in connection with your access or use or inability to access or use the script, whether or not the damages were foreseeable and whether or not Liam Wilks or Suubee was advised of the possibility of such damages.
+
 # Requirements
 -API Key from IG Markets
 
