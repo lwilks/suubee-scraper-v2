@@ -2490,7 +2490,6 @@ env/Scripts/tk86t.dll
 env/Scripts/unicodedata.pyd
 env/Scripts/vcruntime140.dll
 env/Scripts/winsound.pyd
-.env
 env/Lib/site-packages/dotenv/__init__.py
 env/Lib/site-packages/dotenv/cli.py
 env/Lib/site-packages/dotenv/compat.py
@@ -2643,3 +2642,4 @@ env/Lib/site-packages/python_dotenv-0.10.3.dist-info/RECORD
 env/Lib/site-packages/python_dotenv-0.10.3.dist-info/top_level.txt
 env/Lib/site-packages/python_dotenv-0.10.3.dist-info/WHEEL
 env/Scripts/dotenv.exe
+.env.lw
