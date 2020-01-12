@@ -10,6 +10,19 @@ This tutorial will guide you through setting up the Suubee-Scraper python script
 
 Click the **Start** button to move to the next step.
 
+## Create a Google Cloud project
+
+You will first need to create a project in Google Cloud to house your project
+
+Run the below command in the shell:
+```bash
+gcloud projects create PROJECT_ID
+```
+
+Replace PROJECT_ID with a suitable project name
+
+**Tip**: Click the copy button on the side of the code box and paste the command in the Cloud Shell terminal to run it.
+
 ## Edit the .env file with your Username\Password settings for IG & Suubee
 
 In order for the script to recieve the lists from Suubee it must have the correct login details to access the site (as it is not a publicly available website).
