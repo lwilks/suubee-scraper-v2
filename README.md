@@ -18,4 +18,4 @@ Script to download lists from Suubee.com and build watchlist in IG
 4.) Follow instructions to create an IG API Key
 
 # Cloud shell link
-[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https%3A%2F%2Fgithub.com%2Flwilks%2Fsuubee-scraper.git&cloudshell_open_in_editor=.env)
+[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https%3A%2F%2Fgithub.com%2Flwilks%2Fsuubee-scraper.git&cloudshell_open_in_editor=.env&cloudshell_tutorial=Tutorial.md)
