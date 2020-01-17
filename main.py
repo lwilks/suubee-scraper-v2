@@ -205,7 +205,10 @@ def run(event=None,context=None):
     #Build list of ticker codes from leaders table
     syms = []
     for leader in leaders.find_all('tr'):
-        syms.append(asxcodes[leader.find('td').text.strip()])
+        try:
+            syms.append(asxcodes[leader.find('td').text.strip()])
+        except KeyError:
+            continue
     #Submit list to createlist function for tranlation into "epics" and list creation
     results.append(createlist(syms, 'AU', 'Leaders', printonly=printonly))
     
@@ -240,7 +243,7 @@ def run(event=None,context=None):
         #Build list of ticker codes from sector table
         for ticker in leader.find_all('tr'):
             try:
-                syms.append(asxcodes[leader.find('td').text.strip()])
+                syms.append(asxcodes[ticker.find('td').text.strip()])
             except KeyError:
                 continue
         #Submit list to createlist function for tranlation into "epics" and list creation
