@@ -213,7 +213,10 @@ def run(event=None,context=None):
     syms = []
     leaders = soup.find('tbody', id='juniors_content')
     for leader in leaders.find_all('tr'):
-        syms.append(asxcodes[leader.find('td').text.strip()])
+        try:
+            syms.append(asxcodes[leader.find('td').text.strip()])
+        except KeyError:
+            continue
     #Submit list to createlist function for tranlation into "epics" and list creation
     results.append(createlist(syms, 'AU', 'Emerging', printonly=printonly))
 
@@ -221,7 +224,10 @@ def run(event=None,context=None):
     syms = []
     leaders = soup.find('tbody', id='top20content')
     for leader in leaders.find_all('tr'):
-        syms.append(asxcodes[leader.find('td').text.strip()])
+        try:
+            syms.append(asxcodes[leader.find('td').text.strip()])
+        except KeyError:
+            continue
     #Submit list to createlist function for tranlation into "epics" and list creation
     results.append(createlist(syms, 'AU', 'Shorts', printonly=printonly))
 
@@ -233,7 +239,10 @@ def run(event=None,context=None):
         syms = []
         #Build list of ticker codes from sector table
         for ticker in leader.find_all('tr'):
-            syms.append(asxcodes[ticker.find('td').text.strip()])
+            try:
+                syms.append(asxcodes[leader.find('td').text.strip()])
+            except KeyError:
+                continue
         #Submit list to createlist function for tranlation into "epics" and list creation
         results.append(createlist(syms, 'AU', titles[leadercount].text, printonly=printonly))
         leadercount += 1
