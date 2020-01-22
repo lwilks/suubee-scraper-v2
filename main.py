@@ -118,7 +118,10 @@ def run(event=None,context=None):
     soup = BeautifulSoup(r.text, 'lxml')
 
     #Find "Leaders" table
-    leaders = soup.find('tbody', id='leaders_content')  
+    leaders = soup.find('tbody', id='leaders_content')
+    if leaders is None:
+        print("Invalid username\password combination for Suubee")
+        return "<p>Invalid username\password combination for Suubee</p>"
 
     #Get list of symbols and full company names from ASX website
     r = session.get('https://www.asx.com.au/asx/research/ASXListedCompanies.csv')
@@ -158,10 +161,24 @@ def run(event=None,context=None):
     except requests.exceptions.HTTPError as err:
         if (err.response.status_code == 403):
             time.sleep(timeout)
-            r = session.post(igurl+'session', json=data, headers=headers)
+            try:
+                r = session.post(igurl+'session', json=data, headers=headers)
+                r.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                if (err.response.status_code == 403):
+                    print("Invalid API key for IG")
+                    print("Raw Exception: "+str(err))
+                    return "<p>Invalid API key for IG</p>"
+                else:
+                    print(err)
+                    return "<p>"+str(err)+"</p>"
+        elif (err.response.status_code == 401):
+            print("Invalid username and password combination for IG")
+            print("Raw Exception: "+str(err))
+            return "<p>Invalid username and password combination for IG</p>"
         else:
             print(err)
-            return
+            return "<p>"+str(err)+"</p>"
 
     #Get security token from IG
     global igsectoken
