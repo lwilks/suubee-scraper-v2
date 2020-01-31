@@ -3,3 +3,4 @@ beautifulsoup4==4.4.1
 lxml==4.4.2
 requests==2.21.0
 python-dotenv==0.10.3
+pytz==2019.3

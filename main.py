@@ -8,10 +8,18 @@ import json
 import csv
 import time
 import os
+import datetime
+import pytz
+import re
 
 load_dotenv()
 
 app = Flask(__name__)
+
+utc_now = pytz.utc.localize(datetime.datetime.utcnow())
+au_now = utc_now.astimezone(pytz.timezone("Australia/Melbourne"))
+
+date_str = au_now.strftime('%d-%m')
 
 # Function to read ticker symbol lists, translate symbol lists into IG API "epics" lists and create list in IG
 def createlist(syms, country, listname, checknewscode=False, overrides=None, printonly=True):
@@ -20,24 +28,44 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
     if overrides == None:
         overrides = {}
     epics = []
+
+    exchange = ''
+    if country == 'AU':
+        exchange = 'ASX'
+
     #Loop through ticker list and resolve ticker symbols into epics
     for sym in syms:
+        #If an override exists, use that instead
+        if overrides.get(sym+'.'+exchange):
+            epics.append(overrides.get(sym+'.'+exchange))
+            continue        
+        
         #Search for symbol in IG API. If max hits exceeded (code 403) than wait (for duration specified in timeout variable) then try again
         try:
-            r = session.get(igurl+'markets?searchTerm='+sym, headers=headers)
+            r = session.get(igurl+'markets?searchTerm='+syms[sym], headers=headers)
             r.raise_for_status()
         except requests.exceptions.HTTPError as err:
             if (err.response.status_code == 403):
                 time.sleep(timeout)
-                r = session.get(igurl+'markets?searchTerm='+sym, headers=headers)
+                r = session.get(igurl+'markets?searchTerm='+syms[sym], headers=headers)
             else:
                 print(err)
                 return                
         json_data = json.loads(r.text)
-        #If an override exists, use that instead
-        if overrides.get(sym):
-            epics.append(overrides.get(sym))
-            break
+
+        #If nothing found, try ticker instead of company name
+        if not len(json_data['markets']):
+            try:
+                r = session.get(igurl+'markets?searchTerm='+sym, headers=headers)
+                r.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                if (err.response.status_code == 403):
+                    time.sleep(timeout)
+                    r = session.get(igurl+'markets?searchTerm='+sym, headers=headers)
+                else:
+                    print(err)
+                    return                
+            json_data = json.loads(r.text)
 
         for market in json_data['markets']:
             epic = market['epic']
@@ -60,7 +88,7 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
                     break
             
     d = {}
-    d['name'] = 'SB-'+listname
+    d['name'] = 'SB-'+listname+'-'+date_str
     d['epics'] = epics
 
     if printonly:
@@ -76,6 +104,21 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
             else:
                 return err    
         return r.text
+
+def deletelist(watchlists, name, date_str):
+    for x in watchlists['watchlists']:
+        valid = re.search("^SB-"+name+".*(?="+date_str+")", x['name'])
+        if valid:
+            try:
+                r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
+                r.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                if (err.response.status_code == 403):
+                    time.sleep(timeout)
+                    r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
+                else:
+                    print(err)
+                    return    
 
 # Main function - log's into Suubee, scrapes list data from Trade Desk and US Page, provides list of ticker symbols to createlist function for creation of lists in IG (and ProRealtime)
 @app.route("/")
@@ -146,6 +189,16 @@ def run(event=None,context=None):
             row['Company name'] = row['Company name'][:-6]         
         asxcodes[key] = row['Company name']
 
+
+    r = session.get('https://docs.google.com/spreadsheets/d/e/2PACX-1vT4J-8vOBv1cC9gDT-d0CbhQF8DQVeH4PunXCHrSmc2OmVX7ZF1qFfrGNmVXI_G-8N6GbrjMJxibQFn/pub?output=csv')
+    rows = r.text.split("\n")
+    reader = csv.DictReader(rows)
+
+    overrides = {}
+    for row in reader:
+        key = row.pop('TICKER')+'.'+row.pop('EXCHANGE')
+        overrides[key] = row['EPIC']
+
     #Create header to authenticate with IG API
     headers = {'Version': '2', 'X-IG-API-KEY': igapikey}
     data = {"identifier": igusername, "password": igpassword, "encryptedPassword": '' } 
@@ -191,23 +244,80 @@ def run(event=None,context=None):
 	
     results = []
 	
+    try:
+        r = session.get(igurl+'watchlists', headers=headers)
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        if (err.response.status_code == 403):
+            time.sleep(timeout)
+            r = session.get(igurl+'watchlists', headers=headers)
+        else:
+            print(err)
+            return
+
+    watchlists = json.loads(r.text)
+
+    #Build list of ticker codes from leaders table
+    syms = {}
+    for leader in leaders.find_all('tr'):
+        try:
+            syms[leader.find('td').text.strip()] = asxcodes[leader.find('td').text.strip()]
+        except KeyError:
+            continue
+    if not printonly:
+        deletelist(watchlists, 'Leaders', date_str)
+    #Submit list to createlist function for tranlation into "epics" and list creation
+    results.append(createlist(syms, 'AU', 'Leaders', printonly=printonly, overrides=overrides))
+    
+    #Build list of ticker codes from emerging table
+    syms = {}
+    leaders = soup.find('tbody', id='juniors_content')
+    for leader in leaders.find_all('tr'):
+        try:
+            syms[leader.find('td').text.strip()] = asxcodes[leader.find('td').text.strip()]
+        except KeyError:
+            continue
+    if not printonly:
+        deletelist(watchlists, 'Emerging', date_str)
+    #Submit list to createlist function for tranlation into "epics" and list creation
+    results.append(createlist(syms, 'AU', 'Emerging', printonly=printonly, overrides=overrides))
+
+    #Build list of ticker codes from shorts table
+    syms = {}
+    leaders = soup.find('tbody', id='top20content')
+    for leader in leaders.find_all('tr'):
+        try:
+            syms[leader.find('td').text.strip()] = asxcodes[leader.find('td').text.strip()]
+        except KeyError:
+            continue
+    if not printonly:
+        deletelist(watchlists, 'Shorts', date_str)        
+    #Submit list to createlist function for tranlation into "epics" and list creation
+    results.append(createlist(syms, 'AU', 'Shorts', printonly=printonly, overrides=overrides))
+
+    #Cycle through various sector lists
+    leadercount = 0    
+    leaders = soup.find('table', class_='strongsectors_table')
+    titles = leaders.find_all('div', class_='subtitle_widget')
+    for leader in leaders.find_all('table', class_='subtable'):
+        syms = {}
+        #Build list of ticker codes from sector table
+        for ticker in leader.find_all('tr'):
+            try:
+                syms[ticker.find('td').text.strip()] = asxcodes[ticker.find('td').text.strip()]
+            except KeyError:
+                continue
+        if not printonly:
+            deletelist(watchlists, titles[leadercount].text, date_str)            
+        #Submit list to createlist function for tranlation into "epics" and list creation
+        results.append(createlist(syms, 'AU', titles[leadercount].text, printonly=printonly, overrides=overrides))
+        leadercount += 1
+
     #If we are not simply printing the epics then delete the existing lists we have created
     if not printonly:
-        try:
-            r = session.get(igurl+'watchlists', headers=headers)
-            r.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            if (err.response.status_code == 403):
-                time.sleep(timeout)
-                r = session.get(igurl+'watchlists', headers=headers)
-            else:
-                print(err)
-                return
-
-        json_data = json.loads(r.text)
-
-        for x in json_data['watchlists']:
-            if x['name'][0:3] == 'SB-':
+        for x in watchlists['watchlists']:
+            valid = re.search("SB-*(?!.*"+date_str+").*$", x['name'])
+            if valid:
                 try:
                     r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
                     r.raise_for_status()
@@ -218,54 +328,6 @@ def run(event=None,context=None):
                     else:
                         print(err)
                         return
-
-    #Build list of ticker codes from leaders table
-    syms = []
-    for leader in leaders.find_all('tr'):
-        try:
-            syms.append(asxcodes[leader.find('td').text.strip()])
-        except KeyError:
-            continue
-    #Submit list to createlist function for tranlation into "epics" and list creation
-    results.append(createlist(syms, 'AU', 'Leaders', printonly=printonly))
-    
-    #Build list of ticker codes from emerging table
-    syms = []
-    leaders = soup.find('tbody', id='juniors_content')
-    for leader in leaders.find_all('tr'):
-        try:
-            syms.append(asxcodes[leader.find('td').text.strip()])
-        except KeyError:
-            continue
-    #Submit list to createlist function for tranlation into "epics" and list creation
-    results.append(createlist(syms, 'AU', 'Emerging', printonly=printonly))
-
-    #Build list of ticker codes from shorts table
-    syms = []
-    leaders = soup.find('tbody', id='top20content')
-    for leader in leaders.find_all('tr'):
-        try:
-            syms.append(asxcodes[leader.find('td').text.strip()])
-        except KeyError:
-            continue
-    #Submit list to createlist function for tranlation into "epics" and list creation
-    results.append(createlist(syms, 'AU', 'Shorts', printonly=printonly))
-
-    #Cycle through various sector lists
-    leadercount = 0    
-    leaders = soup.find('table', class_='strongsectors_table')
-    titles = leaders.find_all('div', class_='subtitle_widget')
-    for leader in leaders.find_all('table', class_='subtable'):
-        syms = []
-        #Build list of ticker codes from sector table
-        for ticker in leader.find_all('tr'):
-            try:
-                syms.append(asxcodes[ticker.find('td').text.strip()])
-            except KeyError:
-                continue
-        #Submit list to createlist function for tranlation into "epics" and list creation
-        results.append(createlist(syms, 'AU', titles[leadercount].text, printonly=printonly))
-        leadercount += 1
 
     # #Get Suubee google sheets spreadsheet for US Data
     # r = session.get('https://docs.google.com/spreadsheets/d/e/2PACX-1vRLi_7mUvV_EJ3NajuyoaZvOFOQ5Q5jelch39gRm9AFgi-iwGaez_aGHOSLmanU429GKKbB4wm2JelE/pubhtml', headers=headers)
