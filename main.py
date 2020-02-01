@@ -41,45 +41,18 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
             continue        
         
         #Search for symbol in IG API. If max hits exceeded (code 403) than wait (for duration specified in timeout variable) then try again
-        try:
-            r = session.get(igurl+'markets?searchTerm='+syms[sym], headers=headers)
-            r.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            if (err.response.status_code == 403):
-                time.sleep(timeout)
-                r = session.get(igurl+'markets?searchTerm='+syms[sym], headers=headers)
-            else:
-                print(err)
-                return                
+        r = tryreq('markets?searchTerm='+syms[sym], None, headers, 'GET')           
         json_data = json.loads(r.text)
 
         #If nothing found, try ticker instead of company name
         if not len(json_data['markets']):
-            try:
-                r = session.get(igurl+'markets?searchTerm='+sym, headers=headers)
-                r.raise_for_status()
-            except requests.exceptions.HTTPError as err:
-                if (err.response.status_code == 403):
-                    time.sleep(timeout)
-                    r = session.get(igurl+'markets?searchTerm='+sym, headers=headers)
-                else:
-                    print(err)
-                    return                
+            r = tryreq('markets?searchTerm='+sym, None, headers, 'GET')
             json_data = json.loads(r.text)
 
         for market in json_data['markets']:
             epic = market['epic']
             headers2 = {'Version': '3', 'X-IG-API-KEY': igapikey, 'X-SECURITY-TOKEN': igsectoken, 'CST': igcst}   
-            try:
-                r2 = session.get(igurl+'markets/'+epic, headers=headers2)
-                r2.raise_for_status()
-            except requests.exceptions.HTTPError as err:
-                if (err.response.status_code == 403):
-                    time.sleep(timeout)
-                    r2 = session.get(igurl+'markets/'+epic, headers=headers2)
-                else:
-                    print(err)
-                    return               
+            r2 = tryreq('markets/'+epic, None, headers2, 'GET')              
             json_data2 = json.loads(r2.text)
             newscode = json_data2['instrument']['newsCode']
             if (json_data2['instrument']['type'] == 'SHARES' and json_data2['instrument']['country'] == country):
@@ -100,15 +73,7 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
     if printonly:
         print(json.dumps(d, indent = 4))
     else:
-        try:
-            r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
-            r.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            if (err.response.status_code == 403):
-                time.sleep(timeout)
-                r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
-            else:
-                return err    
+        r = tryreq('watchlists', d, headers, 'POST')  
 
     if len(epics2):
         d['name'] = 'SB-'+listname+'-2'
@@ -116,17 +81,27 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
         if printonly:
             print(json.dumps(d, indent = 4))
         else:
-            try:
-                r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
-                r.raise_for_status()
-            except requests.exceptions.HTTPError as err:
-                if (err.response.status_code == 403):
-                    time.sleep(timeout)
-                    r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
-                else:
-                    return err    
+            r = tryreq('watchlists', d, headers, 'POST')
     
     return r.text        
+
+def tryreq(param, d, headers, method):
+    global timeout
+    global igurl
+    try:
+        data = None
+        if d:
+            data = json.dumps(d)
+        r = session.request(method=method, url=igurl+param, data=data, headers=headers)
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        if (err.response.status_code == 403):
+            time.sleep(timeout)
+            r = session.request(method=method, url=igurl+param, data=data, headers=headers)
+        else:
+            print(err)
+            return err
+    return r
 
 # Main function - log's into Suubee, scrapes list data from Trade Desk and US Page, provides list of ticker symbols to createlist function for creation of lists in IG (and ProRealtime)
 @app.route("/")
@@ -252,16 +227,7 @@ def run(event=None,context=None):
 	
     results = []
 	
-    try:
-        r = session.get(igurl+'watchlists', headers=headers)
-        r.raise_for_status()
-    except requests.exceptions.HTTPError as err:
-        if (err.response.status_code == 403):
-            time.sleep(timeout)
-            r = session.get(igurl+'watchlists', headers=headers)
-        else:
-            print(err)
-            return
+    r = tryreq('watchlists', None, headers, 'GET')
 
     watchlists = json.loads(r.text)
 
@@ -270,30 +236,13 @@ def run(event=None,context=None):
         for x in watchlists['watchlists']:
             valid = re.search("^SB-*", x['name'])
             if valid:
-                try:
-                    r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
-                    r.raise_for_status()
-                except requests.exceptions.HTTPError as err:
-                    if (err.response.status_code == 403):
-                        time.sleep(timeout)
-                        r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
-                    else:
-                        print(err)
-                        return      
+                r = tryreq('watchlists/'+x['id'], None, headers, 'DELETE')
         
         d = {}
         d['name'] = 'SB-UPDATE_IN_PROGRESS'
         d['epics'] = []
 
-        try:
-            r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
-            r.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            if (err.response.status_code == 403):
-                time.sleep(timeout)
-                r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
-            else:
-                return err    
+        r = tryreq('watchlists', d, headers, 'POST')
 
     #Build list of ticker codes from leaders table
     syms = {}
@@ -347,16 +296,7 @@ def run(event=None,context=None):
         results.append(createlist(syms, 'AU', titles[leadercount].text, printonly=printonly, overrides=overrides))
         leadercount += 1
 
-    try:
-        r = session.get(igurl+'watchlists', headers=headers)
-        r.raise_for_status()
-    except requests.exceptions.HTTPError as err:
-        if (err.response.status_code == 403):
-            time.sleep(timeout)
-            r = session.get(igurl+'watchlists', headers=headers)
-        else:
-            print(err)
-            return
+    r = tryreq('watchlists', None, headers, 'GET')
 
     watchlists = json.loads(r.text)
 
@@ -364,16 +304,7 @@ def run(event=None,context=None):
     if not printonly:
         for x in watchlists['watchlists']:
             if x['name'] == 'SB-UPDATE_IN_PROGRESS':
-                try:
-                    r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
-                    r.raise_for_status()
-                except requests.exceptions.HTTPError as err:
-                    if (err.response.status_code == 403):
-                        time.sleep(timeout)
-                        r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
-                    else:
-                        print(err)
-                        return      
+                r = tryreq('watchlists/'+x['id'], None, headers, 'DELETE')   
 	
     # This part for generate HTML for return
     html = ''
