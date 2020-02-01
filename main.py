@@ -9,17 +9,17 @@ import csv
 import time
 import os
 import datetime
-import pytz
+# import pytz
 import re
 
 load_dotenv()
 
 app = Flask(__name__)
 
-utc_now = pytz.utc.localize(datetime.datetime.utcnow())
-au_now = utc_now.astimezone(pytz.timezone("Australia/Melbourne"))
+# utc_now = pytz.utc.localize(datetime.datetime.utcnow())
+# au_now = utc_now.astimezone(pytz.timezone("Australia/Melbourne"))
 
-date_str = au_now.strftime('%d-%m')
+# date_str = au_now.strftime('%d-%m')
 
 # Function to read ticker symbol lists, translate symbol lists into IG API "epics" lists and create list in IG
 def createlist(syms, country, listname, checknewscode=False, overrides=None, printonly=True):
@@ -88,8 +88,14 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
                     break
             
     d = {}
-    d['name'] = 'SB-'+listname+'-'+date_str
+    d['name'] = 'SB-'+listname
     d['epics'] = epics
+
+    epics2 = []
+    if len(epics) > 50:
+        d['name'] = 'SB-'+listname+'-1'
+        d['epics'] = epics[:50]
+        epics2 = epics[51:]
 
     if printonly:
         print(json.dumps(d, indent = 4))
@@ -103,22 +109,24 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
                 r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
             else:
                 return err    
-        return r.text
 
-def deletelist(watchlists, name, date_str):
-    for x in watchlists['watchlists']:
-        valid = re.search("^SB-"+name+".*(?="+date_str+")", x['name'])
-        if valid:
+    if len(epics2):
+        d['name'] = 'SB-'+listname+'-2'
+        d['epics'] = epics2
+        if printonly:
+            print(json.dumps(d, indent = 4))
+        else:
             try:
-                r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
+                r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
                 r.raise_for_status()
             except requests.exceptions.HTTPError as err:
                 if (err.response.status_code == 403):
                     time.sleep(timeout)
-                    r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
+                    r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
                 else:
-                    print(err)
-                    return    
+                    return err    
+    
+    return r.text        
 
 # Main function - log's into Suubee, scrapes list data from Trade Desk and US Page, provides list of ticker symbols to createlist function for creation of lists in IG (and ProRealtime)
 @app.route("/")
@@ -257,6 +265,36 @@ def run(event=None,context=None):
 
     watchlists = json.loads(r.text)
 
+    #If we are not simply printing the epics then delete the existing lists we have created
+    if not printonly:
+        for x in watchlists['watchlists']:
+            valid = re.search("^SB-*", x['name'])
+            if valid:
+                try:
+                    r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
+                    r.raise_for_status()
+                except requests.exceptions.HTTPError as err:
+                    if (err.response.status_code == 403):
+                        time.sleep(timeout)
+                        r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
+                    else:
+                        print(err)
+                        return      
+        
+        d = {}
+        d['name'] = 'SB-UPDATE_IN_PROGRESS'
+        d['epics'] = []
+
+        try:
+            r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            if (err.response.status_code == 403):
+                time.sleep(timeout)
+                r = session.post(igurl+'watchlists', data=json.dumps(d), headers=headers)
+            else:
+                return err    
+
     #Build list of ticker codes from leaders table
     syms = {}
     for leader in leaders.find_all('tr'):
@@ -264,8 +302,7 @@ def run(event=None,context=None):
             syms[leader.find('td').text.strip()] = asxcodes[leader.find('td').text.strip()]
         except KeyError:
             continue
-    if not printonly:
-        deletelist(watchlists, 'Leaders', date_str)
+
     #Submit list to createlist function for tranlation into "epics" and list creation
     results.append(createlist(syms, 'AU', 'Leaders', printonly=printonly, overrides=overrides))
     
@@ -277,8 +314,7 @@ def run(event=None,context=None):
             syms[leader.find('td').text.strip()] = asxcodes[leader.find('td').text.strip()]
         except KeyError:
             continue
-    if not printonly:
-        deletelist(watchlists, 'Emerging', date_str)
+
     #Submit list to createlist function for tranlation into "epics" and list creation
     results.append(createlist(syms, 'AU', 'Emerging', printonly=printonly, overrides=overrides))
 
@@ -290,8 +326,7 @@ def run(event=None,context=None):
             syms[leader.find('td').text.strip()] = asxcodes[leader.find('td').text.strip()]
         except KeyError:
             continue
-    if not printonly:
-        deletelist(watchlists, 'Shorts', date_str)        
+
     #Submit list to createlist function for tranlation into "epics" and list creation
     results.append(createlist(syms, 'AU', 'Shorts', printonly=printonly, overrides=overrides))
 
@@ -307,17 +342,28 @@ def run(event=None,context=None):
                 syms[ticker.find('td').text.strip()] = asxcodes[ticker.find('td').text.strip()]
             except KeyError:
                 continue
-        if not printonly:
-            deletelist(watchlists, titles[leadercount].text, date_str)            
+
         #Submit list to createlist function for tranlation into "epics" and list creation
         results.append(createlist(syms, 'AU', titles[leadercount].text, printonly=printonly, overrides=overrides))
         leadercount += 1
 
+    try:
+        r = session.get(igurl+'watchlists', headers=headers)
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        if (err.response.status_code == 403):
+            time.sleep(timeout)
+            r = session.get(igurl+'watchlists', headers=headers)
+        else:
+            print(err)
+            return
+
+    watchlists = json.loads(r.text)
+
     #If we are not simply printing the epics then delete the existing lists we have created
     if not printonly:
         for x in watchlists['watchlists']:
-            valid = re.search("SB-*(?!.*"+date_str+").*$", x['name'])
-            if valid:
+            if x['name'] == 'SB-UPDATE_IN_PROGRESS':
                 try:
                     r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
                     r.raise_for_status()
@@ -327,64 +373,12 @@ def run(event=None,context=None):
                         r = session.delete(igurl+'watchlists/'+x['id'], headers=headers)
                     else:
                         print(err)
-                        return
-
-    # #Get Suubee google sheets spreadsheet for US Data
-    # r = session.get('https://docs.google.com/spreadsheets/d/e/2PACX-1vRLi_7mUvV_EJ3NajuyoaZvOFOQ5Q5jelch39gRm9AFgi-iwGaez_aGHOSLmanU429GKKbB4wm2JelE/pubhtml', headers=headers)
-
-    # #Parse google sheets spreadsheet using Beautiful Soup
-    # soup = BeautifulSoup(r.text, 'lxml')
-
-    # leaders = []
-
-    # #Skip first 6 rows then read first column for US Leaders
-    # for row in soup.find('table').find('tbody').find_all('tr')[5:]:
-        # sym = row.find_all('td')[0].text
-        # if (sym[:1] != '*'):
-            # leaders.append(sym)
-
-    # shortsyms = []
-    # goldsyms = []
-    # stage1syms = []
-    # shorts = True
-    # golds = True
-    # goldsblankcount = 0
-    # #Skip first 6 rows then read sixth column for US Shorts, US Golds & US Stage One
-    # for row in soup.find('table').find('tbody').find_all('tr')[5:]:
-        # sym = row.find_all('td')[5].text.strip()
-        # if shorts:
-            # if sym == '':
-                # shorts = False
-            # else:
-                # shortsyms.append(sym)
-        # elif golds:
-            # if sym == '':
-                # if goldsblankcount > 0:
-                    # golds = False
-                # goldsblankcount = goldsblankcount + 1
-            # elif sym != 'US Gold' and sym != 'Ticker':
-                # goldsyms.append(sym)
-        # else:
-            # if sym != '' and sym != 'Stage One' and sym != 'Ticker':
-                # stage1syms.append(sym)
-
-    # #Submit list to createlist function for tranlation into "epics" and list creation
-    # results.append(createlist(leaders, 'US', 'US-Leaders', True, printonly=printonly))
-    # #Submit list to createlist function for tranlation into "epics" and list creation
-    # results.append(createlist(shortsyms, 'US', 'US-Shorts', True, printonly=printonly))
-
-    # #Override Ticker and provide "epic" manually
-    # overrides={}
-    # overrides['FR'] = 'SA.D.AGSUS.CASH.IP'
-    # #Submit list to createlist function for tranlation into "epics" and list creation
-    # results.append(createlist(goldsyms, 'US', 'US-Gold', True, overrides, printonly=printonly))
-    # #Submit list to createlist function for tranlation into "epics" and list creation
-    # results.append(createlist(stage1syms, 'US', 'US-Stage-One', True, printonly=printonly))
+                        return      
 	
     # This part for generate HTML for return
     html = ''
     for i in results:
-        html += '<h2>' + i + '</br>'
+        html += '<h2>' + str(i) + '</br>'
 
     return html	
     #print(results)
