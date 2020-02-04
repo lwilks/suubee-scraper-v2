@@ -9,24 +9,26 @@ import csv
 import time
 import os
 import datetime
-# import pytz
+import pytz
 import re
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from datetime import date, timedelta
+from collections import OrderedDict
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# utc_now = pytz.utc.localize(datetime.datetime.utcnow())
-# au_now = utc_now.astimezone(pytz.timezone("Australia/Melbourne"))
+utc_now = pytz.utc.localize(datetime.datetime.utcnow())
+au_now = utc_now.astimezone(pytz.timezone("Australia/Melbourne"))
 
-# date_str = au_now.strftime('%d-%m')
+date_str = au_now.strftime('%d/%m/%Y')
 
 # Function to read ticker symbol lists, translate symbol lists into IG API "epics" lists and create list in IG
-def createlist(syms, country, listname, checknewscode=False, overrides=None, printonly=True):
+def createlist(syms, country, listname, checknewscode=False, printonly=True):
     global timeout
     global igurl
-    if overrides == None:
-        overrides = {}
     epics = []
 
     exchange = ''
@@ -38,7 +40,18 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
         #If an override exists, use that instead
         if overrides.get(sym+'.'+exchange):
             epics.append(overrides.get(sym+'.'+exchange))
-            continue        
+            continue
+
+        #Check if the epic has been cached to google sheets in the past 7 days. If so, use that.
+        if cache.get(sym+'.'+exchange):
+            last_updated = cache.get(sym+'.'+exchange)['LAST UPDATE']
+            d1, m1, y1 = last_updated.split('/')
+            last_updated_date = date(int(y1), int(m1), int(d1))
+            current_date = date(au_now.year, au_now.month, au_now.day)
+            cutoff_date = current_date - timedelta(days = 7)
+            if last_updated_date >= cutoff_date:
+                epics.append(cache.get(sym+'.'+exchange)['EPIC'])
+                continue    
         
         #Search for symbol in IG API. If max hits exceeded (code 403) than wait (for duration specified in timeout variable) then try again
         r = tryreq('markets?searchTerm='+syms[sym], None, headers, 'GET')           
@@ -58,6 +71,9 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
             if (json_data2['instrument']['type'] == 'SHARES' and json_data2['instrument']['country'] == country):
                 if (newscode[:newscode.find('.')] == sym or checknewscode == False):
                     epics.append(market['epic'])
+                    #If the google sheets epic cache is available, write to it.
+                    if gs_service:
+                        addtosheets(sym, exchange, market['epic'])
                     break
             
     d = {}
@@ -85,6 +101,7 @@ def createlist(syms, country, listname, checknewscode=False, overrides=None, pri
     
     return r.text        
 
+#Try request. If we recieve a 403 response, wait 60 seconds and try again.
 def tryreq(param, d, headers, method):
     global timeout
     global igurl
@@ -102,6 +119,69 @@ def tryreq(param, d, headers, method):
             print(err)
             return err
     return r
+
+#Try and connect to google sheets to write to epic cache. (Probably only available to the script Author for writing)
+def getGoogleSheetsService():
+    secrets_file = os.path.join(os.getcwd(), 'client_secret.json')
+    if os.path.isfile(secrets_file):
+        creds = service_account.Credentials.from_service_account_file(secrets_file, scopes=SCOPES)
+
+        return build('sheets', 'v4', credentials=creds)
+    else:
+        return None
+
+#Add epic to google sheets cache
+def addtosheets(ticker, exchange, epic):
+    values = [ [ ticker, exchange, epic, date_str ] ]
+    body = {
+        'values': values
+    }
+    gs_service.spreadsheets().values().append(spreadsheetId=SPREADSHEET_ID, range=SPREADSHEET_RANGE_NAME, valueInputOption='USER_ENTERED', body=body).execute()
+
+#Flush google sheets epic cache
+def flushcache():
+    response = gs_service.spreadsheets().values().get(spreadsheetId=SPREADSHEET_ID, range=SPREADSHEET_RANGE_NAME).execute()
+    count = 0
+    deletecount = 0
+    requests = []
+    for x in response['values']:
+        if count == 0:
+            count = count + 1
+            continue
+        d1, m1, y1 = x[3].split('/')
+        last_updated_date = date(int(y1), int(m1), int(d1))
+        current_date = date(au_now.year, au_now.month, au_now.day)
+        cutoff_date = current_date - timedelta(days = 7)
+        if last_updated_date < cutoff_date:
+            requests.append({
+                "deleteDimension": {
+                    "range": {
+                    "dimension": "ROWS",
+                    "sheetId": 232493082,
+                    "startIndex": count - deletecount,
+                    "endIndex": count - deletecount + 1
+                    }
+                }                
+            })
+            deletecount = deletecount + 1
+        count = count + 1
+    if requests:
+        body = {
+            'requests': requests
+        }
+        gs_service.spreadsheets().batchUpdate(spreadsheetId=SPREADSHEET_ID, body=body).execute()
+
+#Load epic cache from google sheets
+def loadepiccache():    
+    r = session.get('https://docs.google.com/spreadsheets/d/e/2PACX-1vT4J-8vOBv1cC9gDT-d0CbhQF8DQVeH4PunXCHrSmc2OmVX7ZF1qFfrGNmVXI_G-8N6GbrjMJxibQFn/pub?gid=232493082&single=true&output=csv', headers={'Cache-Control': 'no-cache'})
+    rows = r.text.split("\n")
+    reader = csv.DictReader(rows)
+
+    cache = {}
+    for row in reader:
+        key = row.pop('TICKER')+'.'+row.pop('EXCHANGE')
+        cache[key] = row
+    return cache
 
 # Main function - log's into Suubee, scrapes list data from Trade Desk and US Page, provides list of ticker symbols to createlist function for creation of lists in IG (and ProRealtime)
 @app.route("/")
@@ -124,6 +204,16 @@ def run(event=None,context=None):
     #Suubee Premium url
     url = 'https://suubeepremium.com/login/'
     
+    # If modifying these scopes, delete the file token.pickle.
+    global SCOPES
+    SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/spreadsheets']
+
+    # The ID and range of a sample spreadsheet.
+    global SPREADSHEET_ID
+    SPREADSHEET_ID = '1EoWJEMzhDH_bc_vIWjlzq0O4mOh6etaxrCFOLr9ec9A'
+    global SPREADSHEET_RANGE_NAME
+    SPREADSHEET_RANGE_NAME = 'EPICCACHE'
+
     #Set to true to print list of "epics" instead of creating lists
     printonly = False
 
@@ -172,15 +262,28 @@ def run(event=None,context=None):
             row['Company name'] = row['Company name'][:-6]         
         asxcodes[key] = row['Company name']
 
-
+    #Load overrides from google sheets
     r = session.get('https://docs.google.com/spreadsheets/d/e/2PACX-1vT4J-8vOBv1cC9gDT-d0CbhQF8DQVeH4PunXCHrSmc2OmVX7ZF1qFfrGNmVXI_G-8N6GbrjMJxibQFn/pub?output=csv')
     rows = r.text.split("\n")
     reader = csv.DictReader(rows)
 
+    global overrides
     overrides = {}
     for row in reader:
         key = row.pop('TICKER')+'.'+row.pop('EXCHANGE')
         overrides[key] = row['EPIC']
+
+    #Try connecting to google sheets to write epic cache. (Will probably only work for Liam Wilks)
+    global gs_service
+    gs_service = getGoogleSheetsService()
+
+    #If we have a connection to google sheets, flush out expired epics (older than 7 days)
+    if gs_service:
+        flushcache()
+
+    #Load epic cache from google sheets
+    global cache 
+    cache = loadepiccache()
 
     #Create header to authenticate with IG API
     headers = {'Version': '2', 'X-IG-API-KEY': igapikey}
@@ -253,7 +356,7 @@ def run(event=None,context=None):
             continue
 
     #Submit list to createlist function for tranlation into "epics" and list creation
-    results.append(createlist(syms, 'AU', 'Leaders', printonly=printonly, overrides=overrides))
+    results.append(createlist(syms, 'AU', 'Leaders', printonly=printonly))
     
     #Build list of ticker codes from emerging table
     syms = {}
@@ -265,7 +368,7 @@ def run(event=None,context=None):
             continue
 
     #Submit list to createlist function for tranlation into "epics" and list creation
-    results.append(createlist(syms, 'AU', 'Emerging', printonly=printonly, overrides=overrides))
+    results.append(createlist(syms, 'AU', 'Emerging', printonly=printonly))
 
     #Build list of ticker codes from shorts table
     syms = {}
@@ -277,7 +380,7 @@ def run(event=None,context=None):
             continue
 
     #Submit list to createlist function for tranlation into "epics" and list creation
-    results.append(createlist(syms, 'AU', 'Shorts', printonly=printonly, overrides=overrides))
+    results.append(createlist(syms, 'AU', 'Shorts', printonly=printonly))
 
     #Cycle through various sector lists
     leadercount = 0    
@@ -293,7 +396,7 @@ def run(event=None,context=None):
                 continue
 
         #Submit list to createlist function for tranlation into "epics" and list creation
-        results.append(createlist(syms, 'AU', titles[leadercount].text, printonly=printonly, overrides=overrides))
+        results.append(createlist(syms, 'AU', titles[leadercount].text, printonly=printonly))
         leadercount += 1
 
     r = tryreq('watchlists', None, headers, 'GET')
