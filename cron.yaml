@@ -1,4 +1,5 @@
 cron:
 - description: "Suubee Scraper Periodic"
   url: /
-  schedule: every 6 hours
+  schedule: every day 18:00
+  timezone: Australia/VIC
