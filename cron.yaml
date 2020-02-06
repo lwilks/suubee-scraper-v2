@@ -2,4 +2,4 @@ cron:
 - description: "Suubee Scraper Periodic"
   url: /
   schedule: every day 18:00
-  timezone: Australia/VIC
+  timezone: Australia/Victoria
