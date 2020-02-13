@@ -1,7 +1,7 @@
 # Suubee-Scraper
 Script to download lists from Suubee.com and build watchlist in IG
 
-**WARNING**: This script was developed by Liam Wilks and is completly independent of Suubee.com. Under no circumstances shall Liam Wilks or Suubee be liable for any indirect, incidental, consequintial, special or exemplary dmages arising out of or in connection with your access or use or inability to access or use the script, whether or not the damages were foreseeable and whether or not Liam Wilks or Suubee was advised of the possibility of such damages.
+**WARNING**: This script was developed by Liam Wilks and is completly independent of Suubee Premium. Under no circumstances shall Liam Wilks or Suubee be liable for any indirect, incidental, consequintial, special or exemplary damages arising out of or in connection with your access or use or inability to access or use the script, whether or not the damages were foreseeable and whether or not Liam Wilks or Suubee was advised of the possibility of such damages.
 
 # Requirements
 -API Key from IG Markets
@@ -9,7 +9,7 @@ Script to download lists from Suubee.com and build watchlist in IG
 -Google Cloud account with billing enabled
 
 # Cost of running the application
-In it's default configuration the Suubee-Scraper script will only run once every 6 hours. When it runs, it only runs for 10-30 minutes at a time.
+In it's default configuration the Suubee-Scraper script will only run once every 24 hours. When it runs, in most cases it only runs for 1-2 minutes at a time.
 
 This is within the "Always Free" limits of the App Engine. You can find out more here: https://cloud.google.com/free/docs/gcp-free-tier
 
