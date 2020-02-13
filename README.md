@@ -34,4 +34,4 @@ Click on the link below to copy this repositry to Google Cloud Shell and launch 
 
 # Video Tutorial\Overview
 
-[![](http://img.youtube.com/vi/taxZQfrVWws/0.jpg)](http://www.youtube.com/watch?v=taxZQfrVWws "Suubee-Scraper python script for Google App Engine")
+See Suubee Premium
