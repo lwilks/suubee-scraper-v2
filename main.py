@@ -34,6 +34,8 @@ def createlist(syms, country, listname, checknewscode=False, printonly=True):
     exchange = ''
     if country == 'AU':
         exchange = 'ASX'
+    if country == 'US':
+        exchange = 'US'
 
     #Loop through ticker list and resolve ticker symbols into epics
     for sym in syms:
@@ -51,10 +53,10 @@ def createlist(syms, country, listname, checknewscode=False, printonly=True):
             cutoff_date = current_date - timedelta(days = 7)
             if last_updated_date >= cutoff_date:
                 epics.append(cache.get(sym+'.'+exchange)['EPIC'])
-                continue    
-        
+                continue
+
         #Search for symbol in IG API. If max hits exceeded (code 403) than wait (for duration specified in timeout variable) then try again
-        r = tryreq('markets?searchTerm='+syms[sym], None, headers, 'GET')           
+        r = tryreq('markets?searchTerm='+syms[sym], None, headers, 'GET')
         json_data = json.loads(r.text)
 
         #If nothing found, try ticker instead of company name
@@ -64,8 +66,8 @@ def createlist(syms, country, listname, checknewscode=False, printonly=True):
 
         for market in json_data['markets']:
             epic = market['epic']
-            headers2 = {'Version': '3', 'X-IG-API-KEY': igapikey, 'X-SECURITY-TOKEN': igsectoken, 'CST': igcst}   
-            r2 = tryreq('markets/'+epic, None, headers2, 'GET')              
+            headers2 = {'Version': '3', 'X-IG-API-KEY': igapikey, 'X-SECURITY-TOKEN': igsectoken, 'CST': igcst}
+            r2 = tryreq('markets/'+epic, None, headers2, 'GET')
             json_data2 = json.loads(r2.text)
             newscode = json_data2['instrument']['newsCode']
             if (json_data2['instrument']['type'] == 'SHARES' and json_data2['instrument']['country'] == country):
@@ -75,7 +77,7 @@ def createlist(syms, country, listname, checknewscode=False, printonly=True):
                     if gs_service:
                         addtosheets(sym, exchange, market['epic'])
                     break
-            
+
     d = {}
     d['name'] = 'SB-'+listname
     d['epics'] = epics
@@ -89,7 +91,7 @@ def createlist(syms, country, listname, checknewscode=False, printonly=True):
     if printonly:
         print(json.dumps(d, indent = 4))
     else:
-        r = tryreq('watchlists', d, headers, 'POST')  
+        r = tryreq('watchlists', d, headers, 'POST')
 
     if len(epics2):
         d['name'] = 'SB-'+listname+'-2'
@@ -98,8 +100,8 @@ def createlist(syms, country, listname, checknewscode=False, printonly=True):
             print(json.dumps(d, indent = 4))
         else:
             r = tryreq('watchlists', d, headers, 'POST')
-    
-    return r.text        
+
+    return r.text
 
 #Try request. If we recieve a 403 response, wait 60 seconds and try again.
 def tryreq(param, d, headers, method):
@@ -161,7 +163,7 @@ def flushcache():
                     "startIndex": count - deletecount,
                     "endIndex": count - deletecount + 1
                     }
-                }                
+                }
             })
             deletecount = deletecount + 1
         count = count + 1
@@ -172,7 +174,7 @@ def flushcache():
         gs_service.spreadsheets().batchUpdate(spreadsheetId=SPREADSHEET_ID, body=body).execute()
 
 #Load epic cache from google sheets
-def loadepiccache():    
+def loadepiccache():
     r = session.get('https://docs.google.com/spreadsheets/d/e/2PACX-1vT4J-8vOBv1cC9gDT-d0CbhQF8DQVeH4PunXCHrSmc2OmVX7ZF1qFfrGNmVXI_G-8N6GbrjMJxibQFn/pub?gid=232493082&single=true&output=csv', headers={'Cache-Control': 'no-cache'})
     rows = r.text.split("\n")
     reader = csv.DictReader(rows)
@@ -203,7 +205,7 @@ def run(event=None,context=None):
     password = os.environ['SUUBEE_PASS']
     #Suubee Premium url
     url = 'https://suubeepremium.com/login/'
-    
+
     # If modifying these scopes, delete the file token.pickle.
     global SCOPES
     SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/spreadsheets']
@@ -220,7 +222,7 @@ def run(event=None,context=None):
     #Start requests "session"
     global session
     session = requests.Session()
-    
+
     #Create headers - Need to make script look like desktop browsewr so we get the full site from Suubee
     global headers
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.76 Safari/537.36'} # This is chrome, you can set whatever browser you like
@@ -248,18 +250,18 @@ def run(event=None,context=None):
 
     #Make sure we only filter in valid company types
     asxcodes = {}
-    for row in reader:    
+    for row in reader:
         key = row.pop('ASX code')
         if row['Company name'].endswith(' LIMITED'):
             row['Company name'] = row['Company name'][:-8]
         if row['Company name'].endswith(' LIMITED.'):
-            row['Company name'] = row['Company name'][:-9]        
+            row['Company name'] = row['Company name'][:-9]
         if row['Company name'].endswith(' LTD'):
             row['Company name'] = row['Company name'][:-4]
         if row['Company name'].endswith(' TRUST'):
             row['Company name'] = row['Company name'][:-6]
         if row['Company name'].endswith(' REIT'):
-            row['Company name'] = row['Company name'][:-6]         
+            row['Company name'] = row['Company name'][:-6]
         asxcodes[key] = row['Company name']
 
     #Load overrides from google sheets
@@ -282,17 +284,17 @@ def run(event=None,context=None):
         flushcache()
 
     #Load epic cache from google sheets
-    global cache 
+    global cache
     cache = loadepiccache()
 
     #Create header to authenticate with IG API
     headers = {'Version': '2', 'X-IG-API-KEY': igapikey}
-    data = {"identifier": igusername, "password": igpassword, "encryptedPassword": '' } 
+    data = {"identifier": igusername, "password": igpassword, "encryptedPassword": '' }
 
     #How long should be wait between calls to IG API if we have exceeded max hits (default 65 seconds)
     global timeout
     timeout = 65
-    
+
     #Authenticate with IG API. If max hits exceeded (code 403) than wait (for duration specified in timeout variable) then try again
     try:
         r = session.post(igurl+'session', json=data, headers=headers)
@@ -327,9 +329,9 @@ def run(event=None,context=None):
 
     #Construct new header for IG with the security token obtained above
     headers = {'Version': '1', 'X-IG-API-KEY': igapikey, 'X-SECURITY-TOKEN': igsectoken, 'CST': igcst}
-	
+
     results = []
-	
+
     r = tryreq('watchlists', None, headers, 'GET')
 
     watchlists = json.loads(r.text)
@@ -340,7 +342,7 @@ def run(event=None,context=None):
             valid = re.search("^SB-*", x['name'])
             if valid:
                 r = tryreq('watchlists/'+x['id'], None, headers, 'DELETE')
-        
+
         d = {}
         d['name'] = 'SB-UPDATE_IN_PROGRESS'
         d['epics'] = []
@@ -357,7 +359,7 @@ def run(event=None,context=None):
 
     #Submit list to createlist function for tranlation into "epics" and list creation
     results.append(createlist(syms, 'AU', 'Leaders', printonly=printonly))
-    
+
     #Build list of ticker codes from emerging table
     syms = {}
     leaders = soup.find('tbody', id='juniors_content')
@@ -383,7 +385,7 @@ def run(event=None,context=None):
     results.append(createlist(syms, 'AU', 'Shorts', printonly=printonly))
 
     #Cycle through various sector lists
-    leadercount = 0    
+    leadercount = 0
     leaders = soup.find('table', class_='strongsectors_table')
     titles = leaders.find_all('div', class_='subtitle_widget')
     for leader in leaders.find_all('table', class_='subtable'):
@@ -399,6 +401,24 @@ def run(event=None,context=None):
         results.append(createlist(syms, 'AU', titles[leadercount].text, printonly=printonly))
         leadercount += 1
 
+    #Load overrides from google sheets
+    r = session.get('https://analytics.suubee.com/data/suubeepremium/sp-uslist.csv')
+    rows = r.text.split("\n")
+    reader = csv.DictReader(rows)
+
+    uslists = {}
+    for row in reader:
+        uslists[row['List']] = row['List']
+
+    for uslist in uslists:
+        reader = csv.DictReader(rows)
+        syms = {}
+        for row in reader:
+            if row['List'] == uslist:
+                syms[row['Symbol']] = row['Symbol']
+
+        results.append(createlist(syms, 'US', uslist, printonly=printonly))
+
     r = tryreq('watchlists', None, headers, 'GET')
 
     watchlists = json.loads(r.text)
@@ -407,14 +427,14 @@ def run(event=None,context=None):
     if not printonly:
         for x in watchlists['watchlists']:
             if x['name'] == 'SB-UPDATE_IN_PROGRESS':
-                r = tryreq('watchlists/'+x['id'], None, headers, 'DELETE')   
-	
+                r = tryreq('watchlists/'+x['id'], None, headers, 'DELETE')
+
     # This part for generate HTML for return
     html = ''
     for i in results:
         html += '<h2>' + str(i) + '</br>'
 
-    return html	
+    return html
     #print(results)
 
 #run()
