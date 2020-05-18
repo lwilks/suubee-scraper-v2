@@ -40,7 +40,7 @@ Similarly, the script needs your IG login details as well as an API key in order
 
 Click on the link below to begin editing the .env file (if it is not currently shown)
 <walkthrough-editor-open-file
-    filePath="suubee-scraper/.env">
+    filePath="suubee-scraper-v2/.env">
     Open .env for editing
 </walkthrough-editor-open-file>
 

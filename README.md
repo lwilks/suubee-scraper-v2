@@ -30,7 +30,7 @@ It is also possible to set alarms and budgets to manage the costs. You can find 
 
 Click on the link below to copy this repositry to Google Cloud Shell and launch a tutorial which will guide you through the process of setting up the Suubee-Script and deploying it to Google App Engine
 
-[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https%3A%2F%2Fgithub.com%2Flwilks%2Fsuubee-scraper.git&cloudshell_open_in_editor=.env&cloudshell_tutorial=Tutorial.md)
+[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https%3A%2F%2Fgithub.com%2Flwilks%2Fsuubee-scraper-v2.git&cloudshell_open_in_editor=.env&cloudshell_tutorial=Tutorial.md)
 
 # Video Tutorial\Overview
 
