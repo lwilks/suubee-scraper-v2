@@ -5159,3 +5159,5 @@ client_secret.json
 .venv/Lib/site-packages/werkzeug/wrappers/cors.py
 .venv/Lib/site-packages/werkzeug/wrappers/__pycache__/cors.cpython-38.pyc
 __pycache__/main.cpython-36.pyc
+/.env.delivered
+/.venv
