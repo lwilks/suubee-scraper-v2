@@ -116,7 +116,7 @@ def run(event=None,context=None):
     #If we are not simply printing the epics then delete the existing lists we have created
     if not printonly:
         for x in watchlists['watchlists']:
-            valid = re.search("^SB-*", x['name'])
+            valid = re.search("^Suubee *", x['name'])
             if valid:
                 r = tryreq('watchlists/'+x['id'], None, headers, 'DELETE')
 
