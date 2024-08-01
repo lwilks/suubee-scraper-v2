@@ -15,7 +15,7 @@ This is within the "Always Free" limits of the App Engine. You can find out more
 
 It is also possible to set alarms and budgets to manage the costs. You can find out more about that here: https://cloud.google.com/appengine/docs/standard/python/console/#billing
 
-**NOTE**: Needles to say, you are using this script at your own discrestion and you are responsable for any charges you incur as part of using it. Please DYOR!
+**NOTE**: Needless to say, you are using this script at your own discrestion and you are responsable for any charges you incur as part of using it. Please DYOR!
 
 # Getting an IG API key
 1.) Log in to IG Account
