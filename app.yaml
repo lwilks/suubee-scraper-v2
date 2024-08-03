@@ -1,8 +1,6 @@
-runtime: python
-env: flex
-runtime_config:
-  operating_system: "ubuntu22"
-  runtime_version: "3.12"
-entrypoint: gunicorn -b :$PORT main:app
-manual_scaling:
-  instances: 1
+runtime: python312
+instance_class: B1
+entrypoint: gunicorn -t 0 -b :$PORT main:app
+basic_scaling:
+  max_instances: 1
+  idle_timeout: 60m

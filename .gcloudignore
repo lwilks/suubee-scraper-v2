@@ -13,6 +13,12 @@
 .git
 .gitignore
 
+requirements copy.txt
+Tutorial.md
+README.md
+.env.lw
+.env.delivered
+
 # Python pycache:
 __pycache__/
 # Ignored by the build system

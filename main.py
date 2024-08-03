@@ -26,7 +26,9 @@ def tryreq(param, d, headers, method):
         r.raise_for_status()
     except requests.exceptions.HTTPError as err:
         if (err.response.status_code == 403):
+            print("API calls exceeded, waiting 65 seconds")
             time.sleep(timeout)
+            print("Wait over, resuming")
             r = session.request(method=method, url=igurl+param, data=data, headers=headers)
         else:
             print(err)
@@ -74,6 +76,7 @@ def run(event=None,context=None):
 
     #Authenticate with IG API. If max hits exceeded (code 403) than wait (for duration specified in timeout variable) then try again
     try:
+        print("Authenticating with ID")
         r = session.post(igurl+'session', json=data, headers=headers)
         r.raise_for_status()
     except requests.exceptions.HTTPError as err:
@@ -109,6 +112,7 @@ def run(event=None,context=None):
 
     results = []
 
+    print("Retreiving Watchlists")
     r = tryreq('watchlists', None, headers, 'GET')
 
     watchlists = json.loads(r.text)
@@ -118,6 +122,7 @@ def run(event=None,context=None):
         for x in watchlists['watchlists']:
             valid = re.search("^Suubee *", x['name'])
             if valid:
+                print("Deleting watchlists")
                 r = tryreq('watchlists/'+x['id'], None, headers, 'DELETE')
 
     for iglist in lists:
@@ -126,14 +131,33 @@ def run(event=None,context=None):
 
         stripped_rows = []
         for row in rows:
-            stripped_rows.append(row.rstrip())
+            if (len(row)):
+                stripped_rows.append(row.rstrip())
 
-        d = {}
-        d['name'] = iglist
-        d['epics'] = stripped_rows
+        if len(stripped_rows):
+            d = {}
+            d['name'] = iglist
+            d['epics'] = stripped_rows
 
-        r = tryreq('watchlists', d, headers, 'POST')
-        results.append("Added list "+iglist)
+            print("Adding list "+iglist)
+            try:
+                r = tryreq('watchlists', d, headers, 'POST')
+                r.raise_for_status()
+
+                print ("Added list "+iglist)
+                results.append("Added list "+iglist)
+            except requests.exceptions.HTTPError as err:
+                print ("Bad header for list "+iglist)
+                results.append("Bad header for list "+iglist)
+            
+        
+        # wl = json.loads(r.content)
+        # wlID = wl['watchlistId']        
+
+        # d = {}
+        # for row in rows:
+        #     d['epic'] = row.rstrip()
+        #     r = tryreq('watchlists/'+wlID, d, headers, 'PUT')
 
     # This part for generate HTML for return
     html = ''
